@@ -89,13 +89,29 @@ def fault_injection(inputs,__num_inj_sites,__available_injection_sites,__masks):
         shape=[1], minval=0,
         maxval=__num_inj_sites, dtype=tf.int32, seed=22)
 
+    #tf.print(random_index.shape)
     #print(f"Fault from {self.name}")
     random_tensor   = tf.gather(__available_injection_sites, random_index)
     random_mask     = tf.gather(__masks, random_index)
 
+    #tf.print(random_tensor.shape,random_mask.shape)
     #return [inputs[i] * random_mask + random_tensor, random_tensor, random_mask]
     return inputs * random_mask + random_tensor
- 
+
+@tf.function
+def fault_injection_batch_v2(inputs,__num_inj_sites,__available_injection_sites,__masks):
+    shape       = tf.shape(inputs)
+    batch_size  = shape[0]
+
+    random_indexes = tf.random.uniform(
+        shape=[batch_size], minval=0,
+        maxval=__num_inj_sites, dtype=tf.int32, seed=22)
+    
+    random_tensor   = tf.gather(__available_injection_sites, random_indexes)
+    random_mask     = tf.gather(__masks, random_indexes)
+    #tf.print(random_tensor.shape,random_mask.shape)
+    return inputs * random_mask + random_tensor
+
 class ErrorSimulator(tf.keras.layers.Layer):
 
     def __init__(self, available_injection_sites, masks, num_inj_sites, **kwargs):
@@ -121,6 +137,7 @@ class ErrorSimulator(tf.keras.layers.Layer):
     def set_mode(self, mode:ErrorSimulatorMode):
         self.mode.assign([[int(mode)]])
     
+    #TODO MOVE THE GENERATION OF INDEXES OUTSIDE THE WHILE LOOP IN A SINGLE INSTRUCTION (faster)
     def call(self, inputs):
         #tf.print("MODE LAYER :", self.mode, tf.constant([[int(ErrorSimulatorMode.disabled)]]), output_stream=sys.stdout)
         #TF operator to check which mode is active
@@ -128,7 +145,7 @@ class ErrorSimulator(tf.keras.layers.Layer):
         #If Enabled  => Return Faulty  output
         return tf.cond(self.mode == tf.constant([[int(ErrorSimulatorMode.disabled)]]),
                        true_fn=lambda: inputs,
-                       false_fn=lambda: fault_injection_batch(inputs,self.__num_inj_sites,self.__available_injection_sites,self.__masks))
+                       false_fn=lambda: fault_injection_batch_v2(inputs,self.__num_inj_sites,self.__available_injection_sites,self.__masks))
     '''
     #OLD DEPRECATED CALL FUNCTION
     def call(self, inputs):
@@ -153,4 +170,24 @@ class ErrorSimulator(tf.keras.layers.Layer):
 
         #tf.print(output)
         return output
+    '''
+
+
+
+    '''
+
+    random_index = tf.random.uniform(
+            shape=[batch_size,1], minval=0,
+            maxval=self.__num_inj_sites, dtype=tf.int32, seed=22)
+
+    masks       = tf.broadcast_to(masks,(indices[0],masks[1],...,))
+    injections  = tf.broadcast_to(self.__available_injection_sites,(indices[0],injections[1],...,))
+
+    masks       = tf.gather(mask,indices,batch_dims=1)
+    injections  = tf.gather(injections,indices,batch_dims=1)
+
+    return inputs*masks + injections
+
+
+    un altra soluzione è usare tf.where(masks,inputs,injections)
     '''
