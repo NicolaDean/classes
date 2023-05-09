@@ -20,6 +20,8 @@ def create_injection_sites_layer_simulator(num_requested_injection_sites, layer_
     available_injection_sites = []
     masks = []
 
+    ids = []        #list of error models
+
     for _ in range(num_requested_injection_sites):
         curr_injection_sites, cardinality, pattern = __generate_injection_sites(1, layer_type, layer_output_shape_cf)
         shape = eval(layer_output_shape_cl.replace('None', '1'))
@@ -27,6 +29,7 @@ def create_injection_sites_layer_simulator(num_requested_injection_sites, layer_
         curr_mask = np.ones(shape=shape[1:])
 
         if len(curr_injection_sites) > 0:
+            ids.append((cardinality, pattern))
             for idx, value in curr_injection_sites[0].get_indexes_values():
                 channel_last_idx = (idx[0], idx[2], idx[3], idx[1])
                 if value.value_type == '[-1,1]':
@@ -38,7 +41,7 @@ def create_injection_sites_layer_simulator(num_requested_injection_sites, layer_
             available_injection_sites.append(curr_inj_nump)
             masks.append(curr_mask)
 
-    return available_injection_sites, masks
+    return available_injection_sites, masks, ids
 
 class ErrorSimulatorMode(IntEnum):
     disabled = 1,
@@ -99,30 +102,34 @@ def fault_injection(inputs,__num_inj_sites,__available_injection_sites,__masks):
     return inputs * random_mask + random_tensor
 
 @tf.function
-def fault_injection_batch_v2(inputs,__num_inj_sites,__available_injection_sites,__masks):
+def fault_injection_batch_v2(inputs,__num_inj_sites,__available_injection_sites,__masks, error_simulator):
     shape       = tf.shape(inputs)
     batch_size  = shape[0]
 
     random_indexes = tf.random.uniform(
         shape=[batch_size], minval=0,
-        maxval=__num_inj_sites, dtype=tf.int32, seed=22)
+        maxval=__num_inj_sites, dtype=tf.int32, seed=22)    
     
     random_tensor   = tf.gather(__available_injection_sites, random_indexes)
     random_mask     = tf.gather(__masks, random_indexes)
+    
+    random_indexes = tf.expand_dims(random_indexes, axis = 1)
+
+    error_simulator.history.assign(tf.concat([error_simulator.history, random_indexes], axis = 0))
     #tf.print(random_tensor.shape,random_mask.shape)
     return inputs * random_mask + random_tensor
 
 class ErrorSimulator(tf.keras.layers.Layer):
 
-    def __init__(self, available_injection_sites, masks, num_inj_sites, **kwargs):
+    def __init__(self, available_injection_sites, masks, num_inj_sites, error_ids, **kwargs):
 
         super(ErrorSimulator, self).__init__(**kwargs)
         self.__num_inj_sites = num_inj_sites
         self.__available_injection_sites = []
         self.__masks = []
         self.__cardinalities = []
-        self.__patterns = []
-
+        self.error_ids = error_ids
+        self.history = tf.Variable(initial_value = [[1]], dtype = tf.int32, shape = [None, 1])
         #Parameter to chose between enable/disable faults
         self.mode = tf.Variable([[int(ErrorSimulatorMode.enabled)]],shape=tf.TensorShape((1,1)),trainable=False) 
         
@@ -136,6 +143,12 @@ class ErrorSimulator(tf.keras.layers.Layer):
     '''
     def set_mode(self, mode:ErrorSimulatorMode):
         self.mode.assign([[int(mode)]])
+
+    def get_history(self):
+        return self.history.numpy()
+    
+    def clear_history(self):
+        self.history.assign(tf.Variable(initial_value = [[1]], dtype = tf.int32, shape = [None, 1]))
     
     #TODO MOVE THE GENERATION OF INDEXES OUTSIDE THE WHILE LOOP IN A SINGLE INSTRUCTION (faster)
     def call(self, inputs):
@@ -143,9 +156,11 @@ class ErrorSimulator(tf.keras.layers.Layer):
         #TF operator to check which mode is active
         #If Disabled => Return Vanilla output
         #If Enabled  => Return Faulty  output
+        
+        
         return tf.cond(self.mode == tf.constant([[int(ErrorSimulatorMode.disabled)]]),
                        true_fn=lambda: inputs,
-                       false_fn=lambda: fault_injection_batch_v2(inputs,self.__num_inj_sites,self.__available_injection_sites,self.__masks))
+                       false_fn=lambda: fault_injection_batch_v2(inputs,self.__num_inj_sites,self.__available_injection_sites,self.__masks, self))
     '''
     #OLD DEPRECATED CALL FUNCTION
     def call(self, inputs):
