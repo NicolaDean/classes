@@ -57,13 +57,13 @@ def build_model(input_shape, saved_weights=None):
     return keras.Model(inputs=(inputs,), outputs=outputs)
 
 
-def build_model_with_simulator(input_shape, available_injection_sites, masks, num_inj_sites):
+def build_model_with_simulator(input_shape, available_injection_sites, masks, num_inj_sites, patterns):
     inputs = keras.Input(shape=input_shape, name='input')
     conv1 = layers.Conv2D(filters=6, kernel_size=(5, 5), activation='relu', name='conv1')(inputs)
     pool1 = layers.MaxPool2D(pool_size=(2, 2), strides=(1, 1), name='maxpool1')(conv1)
     conv2 = layers.Conv2D(filters=16, kernel_size=(5, 5), strides=(1, 1), activation='relu', padding="same",
                           name='conv2')(pool1)
-    simulator = ErrorSimulator(available_injection_sites, masks, num_inj_sites)(conv2)
+    simulator = ErrorSimulator(available_injection_sites, masks, num_inj_sites, patterns)(conv2)
     pool2 = layers.MaxPool2D(pool_size=(2, 2), strides=(1, 1), name='maxpool2')(simulator)
     conv3 = layers.Conv2D(filters=120, kernel_size=(5, 5), strides=(1, 1), activation='relu', padding="same",
                           name='conv3')(pool2)
@@ -106,7 +106,7 @@ path_weights = os.path.join(WEIGHT_FILE_PATH,'weights.h5')
 print(f"Load weights from => {path_weights}")
 model = build_model(x_train[0].shape, saved_weights=path_weights)
 model_with_simulator = build_model_with_simulator(x_train[0].shape, available_injection_sites, masks,
-                                                  len(available_injection_sites))
+                                                  len(available_injection_sites), patterns)
 
 injector_model_layers = [layer.name for layer in model_with_simulator.layers]
 model_base_layers = [layer.name for layer in model.layers]

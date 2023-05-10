@@ -5,7 +5,7 @@ from enum import IntEnum
 import sys
 
 def create_injection_sites_layer_simulator(num_requested_injection_sites, layer_type, layer_output_shape_cf,
-                                           layer_output_shape_cl, models_folder):
+                                           layer_output_shape_cl, models_folder, return_id_errors = False):
     def __generate_injection_sites(sites_count, layer_type, size, models_mode=''):
 
         injection_site = InjectableSite(layer_type, '', size)
@@ -41,7 +41,10 @@ def create_injection_sites_layer_simulator(num_requested_injection_sites, layer_
             available_injection_sites.append(curr_inj_nump)
             masks.append(curr_mask)
 
-    return available_injection_sites, masks, ids
+    if return_id_errors:
+        return available_injection_sites, masks, ids
+    else:
+        return available_injection_sites, masks
 
 class ErrorSimulatorMode(IntEnum):
     disabled = 1,
