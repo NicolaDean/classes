@@ -20,6 +20,8 @@ class OperatorType(enum.Enum):
     Add = 12  # Add between two tensors.
     Conv2D = 13
     FusedBatchNorm = 14
+    MaxPool2D = 15
+    AvgPool2D = 16
 
     def __str__(self):
         return self.name
@@ -64,6 +66,10 @@ class OperatorType(enum.Enum):
             return "S1_convolution"
         elif self == OperatorType.FusedBatchNorm:
             return "S1_batch_norm"
+        elif self == OperatorType.MaxPool2D:
+            return "S1_maxpool"
+        elif self == OperatorType.AvgPool2D:
+            return "S1_avgpool"
         else:
             raise ValueError("Unable to find a model for this operator: {}".format(self))
 

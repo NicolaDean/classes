@@ -152,6 +152,7 @@ class ErrorSimulator(tf.keras.layers.Layer):
     
     def clear_history(self):
         self.history.assign(tf.Variable(initial_value = [[1]], dtype = tf.int32, shape = [None, 1]))
+        
     
     #TODO MOVE THE GENERATION OF INDEXES OUTSIDE THE WHILE LOOP IN A SINGLE INSTRUCTION (faster)
     def call(self, inputs):
