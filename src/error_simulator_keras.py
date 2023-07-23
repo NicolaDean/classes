@@ -132,7 +132,7 @@ class ErrorSimulator(tf.keras.layers.Layer):
         self.__masks = []
         self.__cardinalities = []
         self.error_ids = error_ids
-        self.history = tf.Variable(initial_value = [[1]], dtype = tf.int32, shape = [None, 1])
+        self.history = tf.Variable(initial_value = [[1]], dtype = tf.int32, shape = [None, 1], trainable=False)
         #Parameter to chose between enable/disable faults
         self.mode = tf.Variable([[int(ErrorSimulatorMode.enabled)]],shape=tf.TensorShape((1,1)),trainable=False) 
         
@@ -151,20 +151,27 @@ class ErrorSimulator(tf.keras.layers.Layer):
         return self.history.numpy()
     
     def clear_history(self):
-        self.history.assign(tf.Variable(initial_value = [[1]], dtype = tf.int32, shape = [None, 1]))
+        self.history.assign(tf.Variable(initial_value = [[1]], dtype = tf.int32, shape = [None, 1], trainable=False))
         
     
     #TODO MOVE THE GENERATION OF INDEXES OUTSIDE THE WHILE LOOP IN A SINGLE INSTRUCTION (faster)
+    @tf.custom_gradient
     def call(self, inputs):
         #tf.print("MODE LAYER :", self.mode, tf.constant([[int(ErrorSimulatorMode.disabled)]]), output_stream=sys.stdout)
         #TF operator to check which mode is active
         #If Disabled => Return Vanilla output
         #If Enabled  => Return Faulty  output
         
+        def grad(upstream):
+            return upstream
         
-        return tf.cond(self.mode == tf.constant([[int(ErrorSimulatorMode.disabled)]]),
+        
+    
+        return tf.cond(tf.math.logical_or(self.mode == tf.constant([[int(ErrorSimulatorMode.disabled)]]),
+                                           tf.random.uniform(shape = [], maxval = 100, dtype = tf.int32) < 0), 
                        true_fn=lambda: inputs,
-                       false_fn=lambda: fault_injection_batch_v2(inputs,self.__num_inj_sites,self.__available_injection_sites,self.__masks, self))
+                       false_fn=lambda: fault_injection_batch_v2(inputs,self.__num_inj_sites,self.__available_injection_sites,self.__masks, self)), grad
+    
     '''
     #OLD DEPRECATED CALL FUNCTION
     def call(self, inputs):
