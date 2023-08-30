@@ -132,9 +132,9 @@ class ErrorSimulator(tf.keras.layers.Layer):
         self.__masks = []
         self.__cardinalities = []
         self.error_ids = error_ids
-        self.history = tf.Variable(initial_value = [[1]], dtype = tf.int32, shape = [None, 1], trainable=False)
+        self.history = tf.Variable(initial_value = [[1]], dtype = tf.int32, shape = [None, 1], trainable=False, name="history")
         #Parameter to chose between enable/disable faults
-        self.mode = tf.Variable([[int(ErrorSimulatorMode.enabled)]],shape=tf.TensorShape((1,1)),trainable=False) 
+        self.mode = tf.Variable([[int(ErrorSimulatorMode.enabled)]],shape=tf.TensorShape((1,1)),trainable=False, name="mode") 
         
         for inj_site in available_injection_sites:
             self.__available_injection_sites.append(tf.convert_to_tensor(inj_site, dtype=tf.float32))
@@ -153,6 +153,9 @@ class ErrorSimulator(tf.keras.layers.Layer):
     def clear_history(self):
         self.history.assign(tf.Variable(initial_value = [[1]], dtype = tf.int32, shape = [None, 1], trainable=False))
         
+    def get_config(self):
+        config = super().get_config()
+        return config
     
     #TODO MOVE THE GENERATION OF INDEXES OUTSIDE THE WHILE LOOP IN A SINGLE INSTRUCTION (faster)
     @tf.custom_gradient
